@@ -206,6 +206,12 @@ docker run -it --rm -p 8501:8501 llm-research-assistant:cpu
 | `data/uploads/` | Cleaned survey data                                 |
 | `experiments/`  | Experiment records and metadata                     |
 
+## Citation
+
+If you use this work, please cite:
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17610808.svg)](https://doi.org/10.5281/zenodo.17610808)
+
 ## License
 
 Developed for academic and applied research automation.
