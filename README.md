@@ -129,10 +129,10 @@ Streamlit-based interface for controlling all modules visually.
 **Command:**
 
 ```bash
-# Option 1 — Direct Streamlit launch
+# Option 1 - Direct Streamlit launch
 streamlit run ui/app.py
 
-# Option 2 — via Makefile
+# Option 2 - via Makefile
 make ui
 ```
 
