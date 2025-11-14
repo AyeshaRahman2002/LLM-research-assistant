@@ -1,0 +1,50 @@
+# Virtual envs
+.venv/
+venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# OS cruft
+.DS_Store
+
+# Logs
+*.log
+textput.log
+
+# Local config / env
+.env
+.env.*
+*.local
+
+# Build + LaTeX artifacts
+Documents/LLM-Paper/*.aux
+Documents/LLM-Paper/*.bbl
+Documents/LLM-Paper/*.blg
+Documents/LLM-Paper/*.out
+Documents/LLM-Paper/*.fls
+Documents/LLM-Paper/*.synctex*
+Documents/LLM-Paper/*.log
+Documents/LLM-Paper/*.fdb_latexmk
+Documents/LLM-Paper/*.pdf
+
+# Large experiment artifacts / models
+experiments/
+results/
+plots/
+reports/*.pdf
+reports/*.xlsx
+reports/summary_tables.xlsx
+reports/final_report.*
+reports/literature_clusters.png
+
+# FAISS indices and numpy blobs
+*.npy
+*.npz
+*.faiss
+
+# Uploaded data
+data/uploads/

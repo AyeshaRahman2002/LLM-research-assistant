@@ -1,0 +1,77 @@
+{
+  "required_columns": [
+    "participant_id",
+    "age",
+    "gender",
+    "education",
+    "income_usd",
+    "joined_date",
+    "satisfaction_score",
+    "feedback_text",
+    "uses_ai_tools",
+    "preferred_model",
+    "completion_rate"
+  ],
+  "dtypes": {
+    "participant_id": "string",
+    "age": "int",
+    "gender": "string",
+    "education": "string",
+    "income_usd": "float",
+    "joined_date": "string",
+    "satisfaction_score": "int",
+    "feedback_text": "string",
+    "uses_ai_tools": "string",
+    "preferred_model": "string",
+    "completion_rate": "float"
+  },
+  "ranges": {
+    "age": {
+      "min": 22.0,
+      "max": 55.0
+    },
+    "income_usd": {
+      "min": 31000.0,
+      "max": 95000.0
+    },
+    "satisfaction_score": {
+      "min": 1.0,
+      "max": 5.0
+    },
+    "completion_rate": {
+      "min": 0.39,
+      "max": 1.0
+    }
+  },
+  "categories": {
+    "gender": [
+      "F",
+      "M",
+      "Other"
+    ],
+    "education": [
+      "Bachelor",
+      "High School",
+      "Master",
+      "PhD"
+    ],
+    "uses_ai_tools": [
+      "False",
+      "No",
+      "True",
+      "Y",
+      "Yes"
+    ],
+    "preferred_model": [
+      "claude-3",
+      "gemma-2b",
+      "gpt-3.5",
+      "gpt-4",
+      "mistral-7b",
+      "vicuna-13b"
+    ]
+  },
+  "unique": [
+    "participant_id"
+  ]
+}

@@ -1,0 +1,463 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xurl}            % better line breaking for URLs/paths
+\def\UrlBreaks{\do\/\do-\do_}
+\usepackage{enumitem}
+\usepackage{natbib}
+\usepackage{microtype}
+
+% Global safety net against overfull lines
+\emergencystretch=1em
+\sloppy
+
+\title{A CPU-Centric Platform for Literature Mining and LLM Efficiency Studies:\\
+Design, Evaluation, and Engineering Lessons}
+
+\author{Ayesha Rahman -- Independent Researcher\\
+\texttt{ayesharahman7755@gmail.com}}
+
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This work presents a practical research platform for studying large language models (LLMs) under realistic compute constraints. The system targets CPU-only environments and integrates (i) automated literature collection and summarization from arXiv and Semantic Scholar, (ii) dense retrieval and retrieval-augmented generation (RAG) over scientific papers, (iii) exploratory data analysis and survey-cleaning utilities, and (iv) an efficiency toolkit for profiling latency, throughput, batching, quantization, LoRA-style parameter-efficient fine-tuning, and KV-cache behavior. All components are implemented in Python using HuggingFace Transformers~\citep{wolf2020transformers}, PyTorch, and scikit-learn, exposed through a Streamlit interface, and orchestrated via a Makefile and a CPU-only Dockerfile for reproducible experiments.
+
+From an end-to-end run, the platform yields summarization quality (ROUGE-L~0.18, BERTScore-F1~0.86), dense-retrieval effectiveness (nDCG@5~$\approx$0.85), and detailed efficiency metrics such as latency vs.\ batch size, tokens-per-second vs.\ prompt length, and CPU-only KV-cache micro-benchmarks. The platform is designed as a testbed for research on LLM efficiency, model optimization, and modular NLP systems, and provides a concrete example of how small instruction-tuned models (MiniLM, FLAN-T5-small~\citep{raffel2020t5}) can support non-trivial research workflows without access to GPUs.
+\end{abstract}
+
+\section{Introduction}
+
+Large language models (LLMs) have rapidly evolved into general-purpose research tools, supporting tasks such as literature triage, summarization, code synthesis, and exploratory data analysis. Their ability to ingest large corpora and produce structured outputs has made them central to empirical machine learning, data-centric science, and applied AI. However, much of the recent work on LLM tooling and infrastructure assumes GPU-rich environments and does not address practical constraints faced by many institutions, such as CPU-only servers or modest cloud budgets.
+
+At the same time, the software ecosystem around LLMs is fragmented. Tools for literature retrieval, RAG, model evaluation, and efficiency profiling are often developed in isolation, making it difficult to run controlled experiments that span the full stack from data ingestion to deployment-style metrics. For researchers interested in efficiency, modularity, or performance-constrained settings (e.g., edge devices or shared HPC clusters), it is useful to have an integrated, reproducible platform that combines \emph{end-to-end functionality} with \emph{fine-grained measurement}.
+
+This paper introduces such a platform: a CPU-centric LLM research assistant for automated literature review, RAG, and efficiency evaluation. Rather than proposing a new model architecture, the work focuses on engineering and empirical questions:
+
+\begin{itemize}[leftmargin=1.5em]
+\item How far can relatively small models (MiniLM, FLAN-T5-small) be pushed in terms of retrieval and summarization quality when combined with classical IR and RAG techniques?
+\item What are the latency and throughput characteristics of these models under realistic CPU-only constraints, as a function of prompt length, batch size, and quantization settings?
+\item How do simple parameter-efficient fine-tuning (PEFT) and KV-cache configurations behave in this environment, and what trade-offs arise compared to common GPU-centric expectations?
+\end{itemize}
+
+To address these questions, an end-to-end pipeline is designed and implemented that: (i) ingests, normalizes, and clusters scientific literature; (ii) builds dense indices and RAG-style QA over the resulting corpus; (iii) provides data-analysis and survey-cleaning utilities for tabular datasets; and (iv) exposes a suite of efficiency experiments via a unified interface.
+
+\paragraph{Contributions.}
+The main contributions of this work are:
+
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{A reproducible, CPU-friendly LLM stack} that integrates literature mining, summarization, RAG, tabular analysis, and survey cleaning into a single modular codebase.
+\item \textbf{An efficiency evaluation toolkit} for CPU-only environments, covering latency, tokens-per-second, batching behavior, quantization stubs, KV-cache micro-benchmarks, and LoRA-based PEFT.
+\item \textbf{Empirical characterization} of how a small FLAN-T5 model and MiniLM embeddings perform on literature summarization and dense retrieval, including quality metrics (ROUGE, BERTScore) and ranking metrics (nDCG@5).
+\item \textbf{An extensible engineering blueprint}---implemented with PyTorch, HuggingFace, and Streamlit---that can be used for further research on efficient LLM architectures, modular pipelines, and multimodal extensions.
+\end{itemize}
+
+\section{Background}
+
+The platform draws on several established lines of research: transformer architectures, sentence-level embeddings, information retrieval, summarization, and parameter-efficient adaptation.
+
+\subsection{Transformer Models and Text-to-Text Frameworks}
+
+Transformer architectures~\citep{vaswani2017attention} underpin most modern LLMs. The T5 framework~\citep{raffel2020t5} casts NLP tasks into a unified text-to-text format, enabling a single encoder--decoder model to support translation, summarization, classification, and QA. FLAN-T5~\citep{chung2022scaling} extends T5 with large-scale instruction tuning, improving zero-shot and few-shot capabilities while maintaining relatively small model variants suitable for CPUs. In this platform, FLAN-T5-small is used as a summarization and generation backbone to balance quality and efficiency.
+
+\subsection{Sentence Embeddings and Dense Retrieval}
+
+Dense vector representations have become standard for semantic retrieval. Sentence-BERT~\citep{reimers2019sentencebert} demonstrated that fine-tuned transformer encoders can produce high-quality sentence embeddings, while FAISS~\citep{johnson2019faiss} and related libraries provide scalable approximate nearest-neighbor search. The MiniLM-based model \path{sentence-transformers/all-MiniLM-L6-v2} is adopted as a lightweight encoder that offers a favorable trade-off between semantic quality and CPU performance.
+
+\subsection{Summarization and Evaluation Metrics}
+
+Abstractive summarization is commonly evaluated using ROUGE~\citep{lin2004rouge}, which measures n-gram overlap, and BERTScore~\citep{zhang2020bertscore}, which computes similarity in an embedding space. These metrics are not perfect correlates of human judgment, but they are widely used and easy to integrate into automated pipelines. In this platform they are used to assess the quality of literature summaries and to approximate factual alignment between RAG answers and their supporting contexts.
+
+\subsection{Retrieval-Augmented Generation}
+
+Retrieval-augmented generation (RAG)~\citep{lewis2020rag} couples dense retrieval with generative models, improving factuality and enabling open-domain QA without retraining large LMs. Production systems often rely on GPU-accelerated encoders, cross-encoders for reranking, and complex orchestration. In contrast, the implementation here focuses on a CPU-safe variant that combines MiniLM-based retrieval, optional TF--IDF reranking, and simple factuality diagnostics while keeping the code modular and inspectable.
+
+\subsection{Parameter-Efficient Fine-Tuning}
+
+Full fine-tuning of LLMs is expensive in both compute and memory. Methods such as LoRA~\citep{hu2022lora} introduce low-rank adapters into attention projections, dramatically reducing the number of trainable parameters while preserving or improving task performance. A LoRA-based training and evaluation loop is integrated into the platform to explore how much improvement can be obtained from PEFT in CPU-only settings.
+
+\section{System Overview}
+
+The codebase is organized into modular Python packages that mirror the main functional components:
+
+\begin{itemize}[leftmargin=1.5em]
+\item \verb|src/literature|: literature fetching, normalization, embedding, clustering, summarization, and reporting.
+\item \verb|src/data_analysis|: exploratory data analysis (EDA), statistical tests, visualization, and LLM-generated commentary (tested via \verb|tests/test_analyze_data.py|).
+\item \verb|src/rag|: dense index construction, RAG QA, hybrid reranking, multi-query expansion, and retrieval evaluation.
+\item \verb|src/llm_opt|: quantization, efficiency metrics, KV-cache benchmarking, PEFT training, and profiling.
+\item \verb|src/surveys|: survey cleaning utilities for Likert and multi-choice data.
+\item \verb|src/reporting|: report and table generation (Markdown, PDF, Excel).
+\item \verb|ui/app.py|: a Streamlit UI that orchestrates the above modules and exposes configuration options.
+\end{itemize}
+
+Configuration is centralized in \verb|config.yaml| and can be overridden via environment variables, allowing the UI to select summarization models, maximum tokens, and RAG parameters. A Makefile defines composite targets such as \verb|make literature|, \verb|make rag|, \verb|make llmopt|, and \verb|make report|, providing a simple orchestration layer. A CPU-only Dockerfile (\verb|Dockerfile.cpu|) packages all dependencies, enabling reproducible runs on commodity servers.
+
+The system is designed to be:
+
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{CPU-safe}: models default to small backbones, and GPU-specific code paths are guarded by availability checks.
+\item \textbf{Network-tolerant}: external APIs (arXiv, Semantic Scholar, CrossRef) implement retry logic and backoff to handle rate limits.
+\item \textbf{Tested}: unit tests validate parsing, metrics, and end-to-end flows for core components.
+\end{itemize}
+
+The following sections describe the main modules in more detail and summarize the empirical behavior observed in an end-to-end run.
+
+\section{Literature Mining and Summarization}
+\label{sec:literature}
+
+\subsection{Data Ingestion and Normalization}
+
+The literature pipeline begins by querying arXiv and Semantic Scholar for a configurable search phrase (default: ``LLM efficiency''):
+
+\begin{itemize}[leftmargin=1.5em]
+\item \verb|fetch_papers.py| queries the arXiv API, handles HTTP~429 via exponential backoff, and caps the total number of returned items.
+\item \verb|fetch_semantic_scholar.py| calls the Semantic Scholar Graph API, optionally using an API key for higher rate limits and requesting metadata such as titles, abstracts, venues, DOIs, and URLs.
+\end{itemize}
+
+\verb|normalize_papers.py| merges these sources into a unified JSON list \verb|data/literature_items.json|. It parses arXiv XML, normalizes whitespace, extracts IDs and summaries, and aligns Semantic Scholar entries via fields such as \verb|paperId| and external IDs. Deduplication is performed by case-folded title.
+
+An optional enrichment step, \verb|fetch_crossref.py|, queries the CrossRef API for missing DOIs and URLs based on title search, improving downstream citation quality.
+
+\subsection{Embedding and Clustering}
+
+To build semantic structure over the corpus, \verb|embed_cluster.py| uses the MiniLM encoder \path{sentence-transformers/all-MiniLM-L6-v2}~\citep{reimers2019sentencebert}. Each item is represented as
+\[
+\text{input} = \text{title} \ \text{---} \ \text{summary},
+\]
+tokenized with \verb|AutoTokenizer| and encoded with \verb|AutoModel|. The implementation mean-pools the last hidden layer using the attention mask and L2-normalizes the resulting vectors, following standard sentence-transformer practice while avoiding an explicit dependency on the \verb|sentence-transformers| package.
+
+The embeddings are clustered with KMeans (\verb|sklearn.cluster.KMeans|) using $k = \min(6, N)$, where $N$ is the number of papers. A 2D PCA projection is saved as \verb|plots/literature_pca.npy| and plotted in \verb|plot_clusters.py|. When \verb|umap-learn| is installed, \verb|umap_projection.py| generates an additional UMAP visualization.
+
+\subsection{Summarization with FLAN-T5}
+
+Paper-level abstractive summaries are generated in \verb|summarize_papers.py| using \path{google/flan-t5-small}~\citep{raffel2020t5,chung2022scaling}. The script:
+
+\begin{enumerate}[leftmargin=1.5em]
+\item Loads \verb|data/literature_items.json|.
+\item Constructs inputs as ``\verb|title. summary|'' for up to 20 items (for quick runs).
+\item Performs batched generation with \verb|AutoModelForSeq2SeqLM.generate|, using beam search (4 beams), a context max length of 1024, and configurable \verb|max_new_tokens|.
+\item Writes \verb|results/summaries.json| containing titles, abstracts, and generated summaries.
+\end{enumerate}
+
+Timing information is stored in \verb|results/metrics.json|. On a 16-core CPU-only machine, summarizing 20 items with FLAN-T5-small completes in roughly 90 seconds.
+
+\subsection{Cluster-Level Summaries and Auto Review}
+
+\verb|cluster_summaries.py| groups papers by KMeans cluster and prompts the same model to produce higher-level thematic summaries. For each cluster, it constructs a bullet list of up to 12 ``\verb|title: summary|'' entries and requests a 6--8 sentence synthesis that explicitly avoids unsupported claims. The resulting summaries are combined in \verb|auto_review_report.py| to form \verb|reports/auto_review.md|, which organizes the corpus by cluster and provides within-cluster paper lists.
+
+\subsection{Citation Link Injection and BibTeX Export}
+
+\verb|cite_link_injection.py| cross-references titles in \verb|results/summaries.json| with \verb|data/literature_items.json| to attach DOIs and URLs to summaries or existing Markdown documents. \verb|save_bibtex.py| exports a BibTeX file (\verb|reports/refs.bib|), using slugified titles as keys and annotating entries as auto-generated.
+
+\subsection{Summarization Evaluation}
+
+\verb|src/eval/eval_summaries.py| computes ROUGE-L and BERTScore-F1 between generated summaries and original abstracts using \citet{lin2004rouge} and \citet{zhang2020bertscore}. The metrics are stored in \verb|results/summary_metrics.json|. In the representative run, the following values are obtained:
+
+\begin{itemize}[leftmargin=1.5em]
+\item ROUGE-L F1: 0.1837
+\item BERTScore F1: 0.8571
+\end{itemize}
+
+These values indicate moderate lexical overlap but high semantic similarity, consistent with expectations for a small instruction-tuned model.
+
+\section{Tabular Data Analysis and Survey Cleaning}
+
+\subsection{Arrow-Safe CSV Ingestion and EDA}
+
+The data-analysis path is implemented in \verb|src/data_analysis/analyze_data.py| and surfaced in the Streamlit UI. CSV files are loaded into pandas with robust dtype handling and missing-value detection. The helper \verb|load_csv_arrow_safe| normalizes boolean tokens, coerces numeric columns, parses dates, and produces Arrow-compatible dtypes for reliable downstream visualization.
+
+An end-to-end test constructs a synthetic CSV with two numeric features, a group column, and a binary target. The pipeline computes descriptive statistics, missing-value analysis, optional simple models, and a summary JSON. In the real dataset contained in \verb|results/data_analysis_summary.json|, the assistant analyzes a 50-row table with:
+
+\begin{itemize}[leftmargin=1.5em]
+\item 4 numeric columns and 1 additional column,
+\item an inferred clustering with $k=3$ (via KMeans),
+\item generated artifacts such as correlation matrices and histograms.
+\end{itemize}
+
+Missing values are summarized in \verb|results/missing_values.csv|, which is enforced by the test suite. Additional scripts such as \verb|visualize_results.py| create PNG figures under \verb|results/visualizations/|.
+
+\subsection{LLM Commentary on Data}
+
+\verb|src/data_analysis/llm_commentary.py| reads numeric summaries and prompts an LLM to produce short narrative commentary. The text is written to \verb|results/data_analysis_commentary.md| and later embedded into the final report, providing a lightweight example of combining statistical summaries with generative explanations.
+
+\subsection{Survey Cleaning Utilities}
+
+\verb|src/surveys/survey_clean.py| offers reusable utilities for survey-style CSVs:
+
+\begin{itemize}[leftmargin=1.5em]
+\item Configurable Likert mappings (e.g., ``strongly disagree:1, \dots, strongly agree:5'') applied to specified columns.
+\item Multi-choice questions (stored as delimited strings) split and one-hot encoded into indicator columns with an accompanying codebook.
+\end{itemize}
+
+On the provided survey CSV, the cleaner generates \verb|results/survey_clean_log.json| summarizing row counts, mappings, and option vocabularies. The cleaned data is stored in \verb|data/uploads/survey_cleaned.csv| for downstream analysis.
+
+\section{Retrieval-Augmented Generation (RAG)}
+
+\subsection{Dense Index Construction}
+
+\verb|src/rag/build_index.py| converts \verb|data/literature_items.json| into an embedding matrix \verb|results/rag/doc_vecs.npy| using the MiniLM encoder from Section~\ref{sec:literature}. Metadata is saved in \verb|results/rag/items.json|. If FAISS is available, a flat inner-product index is constructed and stored as \verb|results/rag/index.faiss|; otherwise, similarity search falls back to NumPy.
+
+\verb|results/rag/meta.json| records the index backend and number of documents, enabling consistent evaluation across runs.
+
+\subsection{RAG QA and Factuality Check}
+
+\verb|rag_qa.py| implements a simple RAG pipeline:
+
+\begin{enumerate}[leftmargin=1.5em]
+\item Encode the user question with MiniLM.
+\item Retrieve top-$k$ documents via FAISS or NumPy cosine similarity.
+\item Concatenate titles and abstracts into a context block.
+\item Prompt FLAN-T5-small to answer using only this context, discouraging unsupported claims.
+\end{enumerate}
+
+The output \verb|results/rag_qa.json| contains the question, answer, and supporting citations with similarity scores. For the query
+\begin{quote}
+\emph{``What are current methods to speed up LLM inference?''}
+\end{quote}
+the system returns an answer plus five cited papers.
+
+\verb|factuality_check.py| assesses alignment by concatenating the summaries of the cited documents into a pseudo-reference and computing ROUGE-L F1 against the generated answer. In the sample run, ROUGE-L F1 is $0.2439$, slightly above a configurable faithfulness threshold.
+
+\subsection{Retrieval Evaluation Metrics}
+
+\verb|rag_eval_metrics.py| evaluates retrieval quality independently of generation. Given \verb|doc_vecs.npy| and queries from \verb|results/rag_eval.csv|, it:
+
+\begin{itemize}[leftmargin=1.5em]
+\item Encodes each query with MiniLM.
+\item Retrieves top-5 documents.
+\item Computes relevance via token overlap between query and document text.
+\item Computes nDCG and a diversity metric (average pairwise cosine distance among top-5 embeddings).
+\end{itemize}
+
+For two representative queries:
+
+\begin{enumerate}[leftmargin=1.5em]
+\item ``What are current methods to speed up LLM inference?''
+\item ``How do diffusion LLMs differ from autoregressive ones?''
+\end{enumerate}
+
+the system reports:
+
+\begin{itemize}[leftmargin=1.5em]
+\item nDCG@5: 0.8499 and 0.8710.
+\item Diversity: 0.4287 and 0.4152.
+\end{itemize}
+
+These results suggest that even a small encoder can yield reasonably effective dense retrieval over this domain.
+
+\subsection{Hybrid Reranking and Multi-Query Expansion}
+
+\verb|hybrid_reranker.py| explores a lightweight hybrid strategy combining:
+
+\begin{itemize}[leftmargin=1.5em]
+\item Dense similarity from MiniLM embeddings (cosine similarity).
+\item Sparse similarity from a scikit-learn \verb|TfidfVectorizer|.
+\end{itemize}
+
+Scores are linearly combined with mixture parameter $\alpha$ (default 0.6). For the query ``Methods to speed up LLM inference'', \verb|results/rag/hybrid_search_demo.json| logs re-ranked candidates and their hybrid scores.
+
+\verb|multiquery_expansion.py| implements handcrafted query expansion based on seed phrases (e.g., ``speed up'', ``throughput'', ``quantization'') and generic rewrites. The expansions, stored in \verb|results/rag_multiquery.json|, can be used for multi-vector retrieval or analysis of query diversity.
+
+\section{LLM Efficiency and Optimization Toolkit}
+
+\subsection{Quantization and Model Variants}
+
+\verb|quantize_models.py| loads the base summarization model and optionally applies:
+
+\begin{itemize}[leftmargin=1.5em]
+\item BitsAndBytes 8-bit or 4-bit quantization (when CUDA and \verb|bitsandbytes| are available).
+\item CPU dynamic quantization for linear layers when GPUs are unavailable.
+\end{itemize}
+
+Model variants are stored under the directory \path{experiments/quantized/} with subdirectories
+\texttt{fp32}, \texttt{fp16}, \texttt{int8-bnb}, \texttt{int4-bnb}, and \texttt{int8-cpu}. In the
+current run, metrics are available for the fp32 variant, but the code paths for additional
+variants are in place for future experiments.
+
+\subsection{Latency and VRAM Metrics}
+
+\verb|evaluate_efficiency.py| benchmarks each available model:
+
+\begin{itemize}[leftmargin=1.5em]
+\item Runs generation on a small set of prompts.
+\item Records average latency per request.
+\item When CUDA is present, logs VRAM usage via \verb|torch.cuda.memory_reserved|.
+\end{itemize}
+
+Metrics are written to \verb|results/efficiency_metrics.csv|. For the fp32 CPU model, the average latency is 1.735~s per prompt, with VRAM reported as 0~MB.
+
+\verb|compare_results.py| merges efficiency metrics with summarization quality metrics from \verb|summary_metrics.json|, yielding \verb|results/benchmark_table.csv|. This table supports trade-off visualizations via \verb|plot_tradeoffs.py|, which outputs \verb|plots/tradeoff_curves.png|.
+
+\subsection{Tokens-per-Second and Batch Ablations}
+
+\verb|eval_tokens_per_sec.py| measures throughput as a function of prompt length for the fp32 model, generating up to 200 tokens. The recorded results (\verb|results/tokens_per_sec.json|) include:
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+Prompt tokens & Generated & Latency (s) & Tokens/s \\
+\midrule
+32   & 200 & 14.19 & 12.60 \\
+128  & 200 & 8.66  & 23.11 \\
+512  & 200 & 11.49 & 17.42 \\
+1024 & 200 & 18.11 & 11.05 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Throughput peaks around 128 input tokens, highlighting the trade-off between encoder cost and decoding efficiency.
+
+\verb|batch_ablation.py| examines the effect of batch size on latency and throughput for a fixed prompt. For batch sizes $\{1,2,4,8,16,32\}$, the script logs metrics in \verb|results/batch_ablation.json|, including:
+
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+Batch size & Latency (s) & Requests/s \\
+\midrule
+1  & 0.552  & 1.81 \\
+2  & 0.847  & 2.36 \\
+4  & 1.516  & 2.64 \\
+8  & 3.231  & 2.48 \\
+16 & 6.239  & 2.56 \\
+32 & 10.788 & 2.97 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Even without GPUs, batching significantly improves throughput, at the cost of increased per-request latency.
+
+\subsection{KV Cache Micro-Benchmark}
+
+\verb|kv_cache_bench.py| evaluates KV-cache behavior using \path{sshleifer/tiny-gpt2}. For short sequences on CPU, the recorded times (\verb|results/kv_cache_bench.json|) are:
+
+\begin{itemize}[leftmargin=1.5em]
+\item Time with cache: 1.861~s,
+\item Time without cache: 0.371~s,
+\item Speedup ratio (no cache / cache): 0.20.
+\end{itemize}
+
+Contrary to common GPU-focused intuition, enabling the KV cache can \emph{slow down} small models on CPU for short sequences due to cache management overhead. This illustrates the importance of environment-specific efficiency studies.
+
+\subsection{System Resources and Environment}
+
+\verb|system_resource_report.py| gathers basic hardware statistics. In the reference environment (\verb|results/system_resources.json|):
+
+\begin{itemize}[leftmargin=1.5em]
+\item \verb|cpu_count|: 16,
+\item RAM: approximately 16~GB (15.38~GB total, 8.10~GB available),
+\item No GPU is detected (empty \verb|nvidia-smi| output).
+\end{itemize}
+
+These constraints motivate the CPU-centric design and the choice of relatively small models.
+
+\subsection{PEFT Training and Evaluation}
+
+\verb|train_peft.py| implements LoRA-based fine-tuning using the PEFT library~\citep{hu2022lora}. The pipeline:
+
+\begin{itemize}[leftmargin=1.5em]
+\item Uses literature items as training data, pairing abstract+title as input and FLAN-T5 summaries as targets.
+\item Attaches LoRA modules to attention projections (\verb|q|, \verb|k|, \verb|v|, \verb|o|) with rank 8 and $\alpha=16$.
+\item Trains for three epochs with an 80/20 train--validation split and AdamW optimization.
+\item Saves the best checkpoint under \verb|experiments/peft_flan_t5/checkpoint-best|.
+\end{itemize}
+
+\verb|peft_eval.py| evaluates the checkpoint against the same summarization targets, computing ROUGE-L and BERTScore-F1 and writing results to \verb|results/peft_eval.json|. \verb|peft_export.py| merges LoRA weights into the base model to produce a standalone artifact.
+
+\subsection{TorchScript Export and Multimodal Stub}
+
+\verb|triton_export.py| traces a tiny GPT-2 causal LM into TorchScript, yielding \verb|results/triton/model.ts| and \verb|results/tiny_gpt2_traced.pt| as minimal examples of serving-oriented export.
+
+\verb|multimodal/llava_stub.py| currently acts as a placeholder for future multimodal integration, producing a stub JSON description of an image. This is intended as the insertion point for LLaVA-style~\citep{liu2023llava} models or other multimodal backbones.
+
+\section{User Interface and Reporting}
+
+\subsection{Streamlit Application}
+
+\verb|ui/app.py| wraps the system in a Streamlit UI with tabs for metrics, summaries, clusters, data, RAG, PEFT, efficiency, and surveys. The app:
+
+\begin{itemize}[leftmargin=1.5em]
+\item Exposes text inputs for model name, maximum tokens, batch size, and RAG top-$k$.
+\item Forwards configuration via environment variables to underlying scripts.
+\item Wraps command-line invocations in a helper \verb|run_cmd| that captures stdout/stderr and displays logs.
+\item Provides file uploaders for CSVs and survey data, previewing them with Arrow-safe dtypes.
+\item Visualizes PCA cluster plots, RAG outputs and factuality checks, PEFT metrics, and efficiency figures.
+\end{itemize}
+
+This interface demonstrates how complex research workflows can be made accessible to non-expert users while retaining full reproducibility for experiments.
+
+\subsection{Final Report and Tables}
+
+\verb|reporting/report_generator.py| builds a final Markdown report (\verb|reports/final_report.md|) and PDF (\verb|reports/final_report.pdf|) using ReportLab. The report includes:
+
+\begin{itemize}[leftmargin=1.5em]
+\item An abstract summarizing summarization and retrieval metrics.
+\item A literature review section embedding the auto-generated cluster summaries.
+\item A data-analysis section embedding the LLM commentary.
+\item An efficiency section referencing the benchmark tables and trade-off curves.
+\end{itemize}
+
+\verb|insert_figures.py| optionally augments reports with figure inclusions for cluster plots, correlation heatmaps, trade-off curves, and UMAP projections.
+
+\verb|table_export.py| collates CSV and JSON metrics into an Excel workbook (\verb|reports/summary_tables.xlsx|), creating one sheet per dataset (efficiency metrics, benchmark tables, RAG evaluations, tokens-per-second, etc.), using \verb|pandas.json_normalize| for nested JSON.
+
+\section{Results and Discussion}
+
+Across the end-to-end run represented in the \verb|results| folder, the system demonstrates:
+
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{Summarization quality}: ROUGE-L~0.1837 and BERTScore-F1~0.8571 on 20 literature items with FLAN-T5-small.
+\item \textbf{Retrieval quality}: nDCG@5 in the range 0.85--0.87 with moderate diversity (0.41--0.43) for two LLM-related queries using MiniLM embeddings.
+\item \textbf{Efficiency}: For fp32 summarization, average latency is 1.74~s per prompt; tokens-per-second peak at $\approx$23 for medium-length prompts; batching can nearly triple throughput with acceptable latency trade-offs.
+\item \textbf{Data analysis and survey cleaning}: A 50-row dataset is processed with automatic statistics, clustering ($k=3$), visualizations, and survey transformations, all orchestrated from a single UI.
+\end{itemize}
+
+Limitations include the use of relatively small models (FLAN-T5-small, MiniLM), a simple RAG pipeline without cross-encoder reranking, and efficiency benchmarks that are illustrative rather than exhaustive. Nonetheless, the platform provides a concrete baseline for research on LLM efficiency, modularity, and deployment in constrained environments.
+
+\section{Related Work}
+
+\paragraph{Transformers and Pretrained LMs.}
+This system builds on the Transformer family~\citep{vaswani2017attention} and the T5 text-to-text framework~\citep{raffel2020t5}, as implemented in HuggingFace Transformers~\citep{wolf2020transformers}. FLAN-T5~\citep{chung2022scaling} informs the choice of instruction-tuned backbones.
+
+\paragraph{Sentence Embeddings and Dense Retrieval.}
+The use of MiniLM encoders is inspired by Sentence-BERT~\citep{reimers2019sentencebert}. For scalable retrieval, the design relies conceptually on FAISS~\citep{johnson2019faiss}, while providing a NumPy-based fallback for CPU-only setups.
+
+\paragraph{Retrieval-Augmented Generation.}
+The RAG component follows the general paradigm of retrieval-augmented generation~\citep{lewis2020rag}, adapted here for a small monolingual encoder and a single generative model.
+
+\paragraph{Evaluation Metrics.}
+Summarization and factuality proxies are measured with ROUGE~\citep{lin2004rouge} and BERTScore~\citep{zhang2020bertscore}.
+
+\paragraph{Parameter-Efficient Fine-Tuning.}
+The PEFT module implements the LoRA method~\citep{hu2022lora}, which has become a standard technique for efficient adaptation of large models.
+
+\paragraph{Multimodal LLMs.}
+Although the multimodal integration is currently a stub, future work is informed by multimodal instruction-tuned models such as LLaVA~\citep{liu2023llava}.
+
+\section{Conclusion and Future Work}
+
+This paper has described a CPU-centric platform that integrates literature mining, RAG, tabular data analysis, and an LLM efficiency toolkit into a single, reproducible stack. The implementation combines modern NLP components (Transformers, sentence embeddings, RAG, LoRA) with pragmatic engineering practices (Docker, Makefile orchestration, a Streamlit UI, and a pytest suite).
+
+There are several natural directions for future work:
+
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{Stronger models and comparative studies.} Integrate more capable models (e.g., larger FLAN-T5 variants or open-source LLaMA-family models) and run systematic comparisons of quality, latency, and memory on CPU vs.\ GPU.
+\item \textbf{Richer RAG pipelines.} Extend the RAG component with learned rerankers, improved factuality metrics, multi-vector retrieval, and support for domain-specific indices (e.g. code repositories or institutional paper collections).
+\item \textbf{Multimodal extensions.} Replace the current LLaVA-style stub with a working vision--language path for tasks such as figure captioning and chart explanation, following multimodal LLM work~\citep{liu2023llava}.
+\item \textbf{Advanced data and survey analytics.} Add richer statistical modeling (e.g., mixed-effects models) and causal inference utilities to the tabular analysis module, and integrate LLM-based explanation for more complex analyses.
+\item \textbf{Broader efficiency experiments.} Run the same pipeline across multiple hardware settings---from laptops to HPC nodes and edge devices---to systematically map the trade-offs between quality, latency, energy use, and cost.
+\end{itemize}
+
+Overall, the platform serves as both a practical research assistant and a testbed for studying efficient LLM deployment in resource-constrained environments, and can be extended to support more advanced models, multimodal capabilities, and larger-scale experiments.
+
+\bibliographystyle{plainnat}
+\bibliography{references}
+
+\end{document}

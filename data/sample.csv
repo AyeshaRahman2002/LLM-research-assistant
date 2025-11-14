@@ -1,0 +1,51 @@
+participant_id,age,gender,education,income_usd,joined_date,satisfaction_score,feedback_text,uses_ai_tools,preferred_model,completion_rate
+P001,23,F,Bachelor,42000,2023-05-10,4,"I like the explanations, but it's slow sometimes",Yes,gpt-4,0.87
+P002,29,M,Master,55000,2022-12-01,5,"Amazing accuracy, very helpful!",Y,claude-3,0.95
+P003,34,F,PhD,72000,2023-01-22,3,"Responses are ok, not consistent",True,gpt-3.5,0.76
+P004,41,M,High School,39000,2021-08-09,2,"Too many hallucinations",No,vicuna-13b,0.62
+P005,27,Other,Bachelor,48000,2022-03-14,4,"Good for brainstorming",Yes,mistral-7b,0.83
+P006,31,F,Master,NaN,2023-07-01,3,"Somewhat confusing interface",True,gemma-2b,0.73
+P007,37,M,Bachelor,53000,2022-11-19,1,"Not relevant for my tasks",False,gemma-2b,0.44
+P008,50,F,PhD,88000,2020-05-05,5,"Excellent! Especially summaries.",Yes,gpt-4,0.99
+P009,26,,Bachelor,46000,2023-04-11,3,"Needs better reasoning.",Y,claude-3,0.71
+P010,45,M,PhD,,2021-09-09,4,"Pretty robust overall",Yes,gpt-3.5,0.89
+P011,38,F,Master,67000,2022-02-17,5,"Saves me a lot of time ⏳",Y,gpt-4,0.92
+P012,24,M,Bachelor,39000,2023-08-12,2,"Limited context understanding",No,gemma-2b,0.61
+P013,33,F,PhD,91000,2020-12-03,5,"💡 Excellent creativity support",Yes,claude-3,0.98
+P014,48,M,Master,56000,2021-10-09,4,"Reliable but sometimes verbose",True,gpt-3.5,0.81
+P015,52,F,High School,38000,2019-05-25,2,"Too complex for me",No,vicuna-13b,0.54
+P016,28,Other,Bachelor,45000,2022-09-18,3,"Fine for drafts but lacks depth",Y,mistral-7b,0.68
+P017,35,F,Master,64000,2023-03-30,4,"👍 Great summaries",Yes,gpt-4,0.84
+P018,42,M,PhD,92000,2020-07-10,5,"Amazing tool! 🚀",True,gpt-4,0.97
+P019,39,F,Bachelor,58000,2022-04-15,3,"Can’t handle tables properly",Y,claude-3,0.78
+P020,25,M,Master,51000,2023-06-02,4,"Good accuracy",Yes,gpt-3.5,0.82
+P021,47,F,PhD,87000,2020-09-23,5,"Most impressive model so far",True,gpt-4,0.99
+P022,30,M,High School,33000,2023-01-30,2,"Hard to use on mobile",False,vicuna-13b,0.58
+P023,44,F,Master,76000,2021-11-12,5,"Best assistant I've tried",Yes,gpt-4,0.94
+P024,28,M,Bachelor,NaN,2022-08-14,3,"It sometimes refuses simple tasks",Yes,gemma-2b,0.67
+P025,36,F,Master,62000,2021-04-19,4,"Useful for research drafts",Y,claude-3,0.88
+P026,33,M,PhD,94000,2023-02-05,5,"🤖 Excellent factual consistency",Yes,gpt-4,0.96
+P027,39,F,Bachelor,52000,2022-05-22,3,"Outputs too formal",True,mistral-7b,0.74
+P028,22,M,High School,31000,2023-07-15,2,"Not creative enough",No,vicuna-13b,0.45
+P029,49,F,Master,81000,2020-11-28,5,"Love the document summaries ❤️",Yes,gpt-4,0.98
+P030,27,F,Bachelor,47000,2022-10-04,4,"Accurate but long responses",Y,claude-3,0.82
+P031,32,M,Master,61000,2023-03-12,3,"Reasoning could be better",True,gpt-3.5,0.73
+P032,40,F,PhD,89000,2021-06-08,5,"My favorite writing partner",Yes,gpt-4,0.97
+P033,26,M,Bachelor,50000,2022-09-01,4,"Handles technical queries well",Y,claude-3,0.86
+P034,43,F,PhD,87000,2021-03-09,5,"Great citations!",True,gpt-4,0.93
+P035,31,Other,Bachelor,48000,2023-04-17,3,"Sometimes refuses to answer",No,vicuna-13b,0.59
+P036,46,M,Master,65000,2021-01-29,4,"Consistent output",Y,gpt-3.5,0.88
+P037,55,F,PhD,95000,2019-12-11,5,"Best AI so far 💫",Yes,gpt-4,1.00
+P038,29,M,Bachelor,54000,2023-07-22,2,"Slow on my laptop",No,gemma-2b,0.52
+P039,41,F,Master,70000,2022-02-27,5,"Love the clarity of responses",Yes,gpt-4,0.91
+P040,38,M,High School,38000,2021-08-02,1,"Crashes often 😤",False,vicuna-13b,0.39
+P041,25,F,Bachelor,42000,2023-05-05,3,"Okay but sometimes off-topic",Y,mistral-7b,0.72
+P042,47,M,PhD,91000,2020-09-15,5,"Professional-level writing",Yes,gpt-4,0.97
+P043,33,F,Master,63000,2022-12-28,4,"Fast responses 👍",True,gpt-3.5,0.84
+P044,37,M,Bachelor,59000,2021-04-02,3,"Sometimes repetitive",Y,claude-3,0.79
+P045,28,F,Master,61000,2022-06-18,4,"Good understanding of context",Yes,gpt-4,0.87
+P046,52,M,PhD,94000,2020-01-11,5,"Extremely polished output",True,gpt-4,0.99
+P047,24,F,Bachelor,45000,2023-07-03,2,"Basic reasoning okay",No,gemma-2b,0.66
+P048,31,M,Master,66000,2022-03-27,4,"Decent tool overall",Yes,mistral-7b,0.83
+P049,36,F,PhD,87000,2021-09-17,5,"I use it for teaching notes",Y,gpt-4,0.95
+P050,29,M,Bachelor,52000,2023-01-08,3,"Not great with data tables",False,claude-3,0.71

@@ -1,0 +1,8 @@
+{
+  "strongly disagree": 1,
+  "disagree": 2,
+  "neutral": 3,
+  "agree": 4,
+  "strongly agree": 5,
+  "1": 1, "2": 2, "3": 3, "4": 4, "5": 5
+}

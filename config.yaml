@@ -1,0 +1,32 @@
+# config.yaml
+# global defaults
+seed: 42
+paths:
+  data_dir: "data"
+  results_dir: "results"
+  reports_dir: "reports"
+
+literature:
+  query: "large language models scientific summarization"
+  max_papers: 50
+  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+  clusters: 6
+
+summarization:
+  models: ["google/flan-t5-small"]
+  max_tokens: 128
+
+evaluation:
+  metrics: ["rougeL", "bertscore"]
+
+# generic profiles
+profiles:
+  app:
+    ui: true
+    heavy_experiments: false
+    report_pdf: true
+  research:
+    ui: false
+    heavy_experiments: true
+    peft: true
+    quantization: ["none", "int8", "int4"]

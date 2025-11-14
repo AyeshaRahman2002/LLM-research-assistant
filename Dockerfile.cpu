@@ -1,0 +1,20 @@
+FROM python:3.10-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential git curl wget libgomp1 \
+ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --upgrade pip && pip install -r requirements.txt
+
+COPY . .
+
+ENV TRANSFORMERS_NO_TF=1 \
+    TRANSFORMERS_NO_JAX=1 \
+    TOKENIZERS_PARALLELISM=false \
+    OMP_NUM_THREADS=1 \
+    MKL_NUM_THREADS=1
+
+EXPOSE 8501
+CMD ["streamlit","run","ui/app.py","--server.port=8501","--server.headless=true"]
